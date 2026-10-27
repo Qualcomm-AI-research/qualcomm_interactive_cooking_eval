@@ -4,7 +4,10 @@ from bert_score import BERTScorer
 from rouge_score import rouge_scorer
 from torch.utils.data import Dataset
 
-from data import QualcommInteractiveCookingDataset
+from data import (
+    QualcommInteractiveCookingDatasetNeurIPS2025,
+    EgoMCBench
+)
 
 _rouge_scorer = rouge_scorer.RougeScorer(["rougeL"], use_stemmer=True)
 _bert_scorer = BERTScorer(
@@ -46,7 +49,7 @@ def get_rouge_score(pred_text: str, gt_text: str) -> float:
     return _rouge_score
 
 
-def load_dataset(plan_set: str, split: str) -> Dataset:
+def load_dataset(dataset_version: str, plan_set: str, split: str) -> Dataset:
     """
     Load the Qualcomm Interactive Cooking Dataset.
 
@@ -58,5 +61,10 @@ def load_dataset(plan_set: str, split: str) -> Dataset:
     Returns:
         The loaded dataset as a torch.utils.data.Dataset object
     """
-    dataset = QualcommInteractiveCookingDataset(plan_set=plan_set, split=split)
+    if dataset_version == "neurips2025":
+        dataset = QualcommInteractiveCookingDatasetNeurIPS2025(plan_set=plan_set, split=split)
+    elif dataset_version == "ego_mc_bench":
+        dataset = EgoMCBench(split=split)
+    else:
+        raise ValueError(f"Invalid dataset_version: {dataset_version}. Expected 'neurips2025', 'ego_mc_bench'.")
     return dataset

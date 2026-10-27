@@ -21,6 +21,12 @@ def get_parser() -> argparse.ArgumentParser:
     )
 
     _parser.add_argument(
+        "--dataset_version",
+        required=True,
+        help="The eval set should be in ['neurips2025','ego_mc_bench'].",
+    )
+
+    _parser.add_argument(
         "--plan_set",
         default="main",
         required=False,
@@ -117,7 +123,8 @@ def get_ground_truth_data(ds: Dataset, video_id: int) -> Dict[str, Any]:
 
 
 def segment_pred_feedbacks(
-    pred_texts: List[str], pred_text_timestamps: List[float]
+    pred_texts: List[str], 
+    pred_text_timestamps: List[float]
 ) -> Tuple[List[List[str]], List[List[float]]]:
     """
     Segments prediction texts and their timestamps based on instructions.
@@ -269,8 +276,7 @@ def run(dataset: Dataset, predictions: Dict[str, Any]) -> None:
         pred_texts_segmented, pred_text_timestamps_segmented = segment_pred_feedbacks(
             pred_texts, pred_text_timestamps
         )
-
-        #
+        
         for segment_idx in range(min(len(pred_texts_segmented), len(gt_data_item["texts"]))):
             gt_texts = gt_data_item["texts"][segment_idx]
             gt_text_timestamps = gt_data_item["texts_timestamps"][segment_idx]
@@ -309,6 +315,7 @@ def run(dataset: Dataset, predictions: Dict[str, Any]) -> None:
 
             # COMPUTE IC-ACC
             if not gt_contains_mistake:
+                # COMPUTE IC-ACC FOR DATASET VERSION 1.0
                 if (
                     "Success:" in _segment_pred_texts[-1]
                     or "all the steps" in _segment_pred_texts[-1]
@@ -350,10 +357,16 @@ def run(dataset: Dataset, predictions: Dict[str, Any]) -> None:
                                 gt_closest_text = gt_closest_text.replace(_ig_str, "")
                             gt_closest_text = gt_closest_text.strip()
 
-                            _bert_score = get_bert_score(_pred_text, gt_closest_text)
+                            try:
+                                _bert_score = get_bert_score(_pred_text, gt_closest_text)
+                            except:
+                                _bert_score = 0.
                             bert_scores.append(_bert_score)
 
-                            _rouge_score = get_rouge_score(_pred_text, gt_closest_text)
+                            try:
+                                _rouge_score = get_rouge_score(_pred_text, gt_closest_text)
+                            except:
+                                _rouge_score = 0.
                             rouge_scores.append(_rouge_score)
 
                             # False true positive as a GT mistake present within the DETECTION_WINDOW_LENGTH
@@ -366,7 +379,11 @@ def run(dataset: Dataset, predictions: Dict[str, Any]) -> None:
 
             mistake_tn += not gt_contains_mistake and not pred_contains_mistake
             mistake_tp += sum(_mistake_register)
-            mistake_fn += sum([not _register for _register in _mistake_register])
+            mistake_fn += sum(
+                not detected
+                for detected, text_type in zip(_mistake_register, gt_text_types[1:])
+                if "mistake" in text_type
+            )
 
         if len(pred_texts_segmented) < len(gt_data_item["texts"]):
             for segment_idx in range(len(pred_texts_segmented), len(gt_data_item["texts"])):
@@ -409,6 +426,6 @@ if __name__ == "__main__":
     parser = get_parser()
     args = parser.parse_args()
 
-    dataset = load_dataset(args.plan_set, args.split)
+    dataset = load_dataset(args.dataset_version, args.plan_set, args.split)
     predictions = load_json_file_to_dict(args.predictions_file_path)
     run(dataset, predictions)
